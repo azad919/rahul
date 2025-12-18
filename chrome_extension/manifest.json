@@ -2,15 +2,32 @@
   "manifest_version": 3,
   "name": "Social Video Downloader",
   "version": "1.0",
-  "description": "Download videos from Instagram and Facebook effortlessly.",
+  "description": "Download videos from Instagram, Facebook, TikTok and more.",
   "permissions": [
     "activeTab",
     "scripting",
+    "storage",
+    "webRequest",
+    "tabs",
     "downloads"
   ],
   "host_permissions": [
     "*://*.instagram.com/*",
-    "*://*.facebook.com/*"
+    "*://*.facebook.com/*",
+    "*://*.tiktok.com/*",
+    "*://*.twitter.com/*",
+    "*://*.x.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.instagram.com/*", "*://.facebook.com/*", "*://*.tiktok.com/*", "*://*.twitter.com/*", "*://*.x.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
   ],
   "action": {
     "default_popup": "popup.html",
@@ -25,13 +42,10 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "content_scripts": [
+  "web_accessible_resources": [
     {
-      "matches": ["*://*.instagram.com/*", "*://*.facebook.com/*"],
-      "js": ["content.js"]
+      "resources": ["injected.js"],
+      "matches": ["*://*.instagram.com/*", "*://*.facebook.com/*", "*://*.tiktok.com/*", "*://*.twitter.com/*", "*://*.x.com/*"]
     }
-  ],
-  "background": {
-    "service_worker": "background.js"
-  }
+  ]
 }

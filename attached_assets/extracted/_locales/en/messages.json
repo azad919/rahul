@@ -1,0 +1,56 @@
+{
+  "name": {
+    "message": "Video Downloader Mega"
+  },
+  "description": {
+    "message": "Download videos from any website in one click. Works on Facebook, Twitter, Dailymotion, and more. Always with sound. Any resolution"
+  },
+  "muteVideo": {
+    "message": "Muted"
+  },
+  "dwBtnTitle": {
+    "message": "Download video"
+  },
+  "protectedText": {
+    "message": "Unable to download videos because of the website policy"
+  },
+  "defaultVideoTitle": {
+    "message": "Video"
+  },
+  "agreementText": {
+    "message": "Please read and accept privacy policy to start using this extension. Clicking Accept you confirm accepting all terms and conditions of this browser extension use."
+  },
+  "pp": {
+    "message": "Privacy Policy"
+  },
+  "accept": {
+    "message": "Accept"
+  },
+  "defaultAudioTitle": {
+    "message": "Audio"
+  },
+  "loading": {
+    "message": "Loading"
+  },
+  "downloading": {
+    "message": "Downloading..."
+  },
+  "playVideo2Detect": {
+    "message": "Start playing the video on the site to make it visible in the extension"
+  },
+  "noVideos": {
+    "message": "No videos to download on this page"
+  },
+  "rate_us_title": {
+    "message": "Leave your feedback"
+  },
+  "downloadInAnotherTab": {
+    "message": "Downloading in another tab… Please wait"
+  },
+  "downloadNotFinished": {
+    "message": "Another video is downloading… Please wait"
+  },
+  "cancelDownload": {
+    "message": "Cancel"
+  }
+}
