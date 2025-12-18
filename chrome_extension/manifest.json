@@ -7,7 +7,6 @@
     "activeTab",
     "scripting",
     "storage",
-    "webRequest",
     "tabs",
     "downloads"
   ],
@@ -16,17 +15,23 @@
     "*://*.facebook.com/*",
     "*://*.tiktok.com/*",
     "*://*.twitter.com/*",
-    "*://*.x.com/*"
+    "*://*.x.com/*",
+    "*://*/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["*://*.instagram.com/*", "*://.facebook.com/*", "*://*.tiktok.com/*", "*://*.twitter.com/*", "*://*.x.com/*"],
+      "matches": [
+        "*://*.instagram.com/*",
+        "*://*.facebook.com/*",
+        "*://*.tiktok.com/*",
+        "*://*.twitter.com/*",
+        "*://*.x.com/*"
+      ],
       "js": ["content.js"],
-      "run_at": "document_start",
-      "all_frames": false
+      "run_at": "document_start"
     }
   ],
   "action": {
@@ -45,7 +50,13 @@
   "web_accessible_resources": [
     {
       "resources": ["injected.js"],
-      "matches": ["*://*.instagram.com/*", "*://*.facebook.com/*", "*://*.tiktok.com/*", "*://*.twitter.com/*", "*://*.x.com/*"]
+      "matches": [
+        "*://*.instagram.com/*",
+        "*://*.facebook.com/*",
+        "*://*.tiktok.com/*",
+        "*://*.twitter.com/*",
+        "*://*.x.com/*"
+      ]
     }
   ]
 }

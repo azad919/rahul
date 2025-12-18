@@ -1,80 +1,95 @@
-// This script runs in page context to intercept fetch/XHR requests
+// Page context script - runs in the actual page
 (function() {
+  console.log('[VideoDownloader] Injected script loaded');
+  
+  const videos = new Map();
+  
+  // Store captured videos
+  window.__videoDownloaderVideos = videos;
+  
+  // Intercept fetch requests
   const originalFetch = window.fetch;
-  const originalXHR = XMLHttpRequest.prototype.open;
-  
-  const capturedUrls = new Set();
-  
-  function checkIfVideo(url) {
-    const videoPatterns = [
-      /\.(mp4|mov|webm|mkv|avi|flv)(\?|$)/i,
-      /\/video\/|\/media\/|\/cdn\/|vod-/i,
-      /\.m3u8(\?|$)/i,
-      /mpegurl|video-stream/i
-    ];
-    
-    try {
-      const urlObj = new URL(url);
-      const path = urlObj.pathname + urlObj.search;
-      return videoPatterns.some(p => p.test(path));
-    } catch {
-      return false;
-    }
-  }
-  
-  // Intercept fetch
   window.fetch = function(...args) {
-    const url = args[0];
-    if (typeof url === 'string' && checkIfVideo(url)) {
-      capturedUrls.add(url);
-      window.postMessage({ type: 'VIDEO_URL', url }, '*');
+    const url = typeof args[0] === 'string' ? args[0] : args[0]?.url;
+    if (url && isVideoUrl(url)) {
+      console.log('[VideoDownloader] Captured video URL via fetch:', url);
+      storeVideo(url);
     }
     return originalFetch.apply(this, args);
   };
   
-  // Intercept XMLHttpRequest
+  // Intercept XHR
+  const originalOpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-    if (typeof url === 'string' && checkIfVideo(url)) {
-      capturedUrls.add(url);
-      window.postMessage({ type: 'VIDEO_URL', url }, '*');
+    if (url && isVideoUrl(url)) {
+      console.log('[VideoDownloader] Captured video URL via XHR:', url);
+      storeVideo(url);
     }
-    return originalXHR.apply(this, [method, url, ...rest]);
+    return originalOpen.apply(this, [method, url, ...rest]);
   };
   
-  // Scan for video tags and source elements
-  function scanDOM() {
-    const videos = [];
+  function isVideoUrl(url) {
+    if (!url || typeof url !== 'string') return false;
     
+    const videoPatterns = [
+      /\.(mp4|webm|mov)(\?|#|$)/i,
+      /\/video(s)?\/|\/media\/|\/cdn\/|vod[_-]/i,
+      /\.m3u8(\?|#|$)/i,
+      /\/reel\/|\/watch\/|\/video\/|\/v\//i
+    ];
+    
+    try {
+      const urlObj = new URL(url, window.location.href);
+      return videoPatterns.some(p => p.test(urlObj.pathname + urlObj.search));
+    } catch {
+      return videoPatterns.some(p => p.test(url));
+    }
+  }
+  
+  function storeVideo(url) {
+    if (!videos.has(url)) {
+      videos.set(url, {
+        src: url,
+        type: 'video/mp4',
+        timestamp: Date.now()
+      });
+    }
+  }
+  
+  // Scan DOM for video tags
+  function scanDOM() {
     document.querySelectorAll('video').forEach(video => {
-      if (video.src && checkIfVideo(video.src)) {
-        videos.push({ src: video.src, type: 'mp4' });
+      if (video.src && !videos.has(video.src)) {
+        storeVideo(video.src);
       }
       video.querySelectorAll('source').forEach(source => {
-        if (source.src && checkIfVideo(source.src)) {
-          videos.push({ src: source.src, type: source.type || 'mp4' });
+        if (source.src && !videos.has(source.src)) {
+          storeVideo(source.src);
         }
       });
     });
-    
-    return videos;
   }
   
-  window.getVideos = scanDOM;
+  // Initial scan
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', scanDOM);
+  } else {
+    scanDOM();
+  }
   
-  // Monitor for dynamically added elements
-  const observer = new MutationObserver(() => {
-    const videos = scanDOM();
-    if (videos.length > 0) {
-      window.postMessage({ type: 'VIDEOS_FOUND', videos }, '*');
-    }
-  });
-  
-  observer.observe(document.body, {
+  // Monitor for new videos
+  const observer = new MutationObserver(() => scanDOM());
+  observer.observe(document.body || document.documentElement, {
     childList: true,
     subtree: true,
     attributes: true,
     attributeFilter: ['src']
   });
   
-  console.log('Video interceptor active');
+  // Export getter function
+  window.getDownloadedVideos = function() {
+    return Array.from(videos.values());
+  };
+  
+  console.log('[VideoDownloader] Monitoring active');
 })();
