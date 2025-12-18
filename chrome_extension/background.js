@@ -1,30 +1,27 @@
-// Background service worker
-console.log('[VideoDownloader] Background service worker loaded');
+console.log('[VideoDownloader] Background worker initialized');
 
-chrome.runtime.onInstalled.addListener(() => {
-  console.log('[VideoDownloader] Extension installed');
-});
+// Simple download handler
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'DOWNLOAD') {
+    const { url, filename } = message;
+    console.log('[VideoDownloader] Download request:', filename);
 
-// Handle download messages
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'DOWNLOAD_VIDEO') {
-    const { url, filename } = request;
-    console.log('[VideoDownloader] Starting download:', filename);
-    
-    chrome.downloads.download({
-      url: url,
-      filename: filename || `video_${Date.now()}.mp4`,
-      saveAs: false
-    }, (downloadId) => {
-      if (chrome.runtime.lastError) {
-        console.error('[VideoDownloader] Download error:', chrome.runtime.lastError);
-        sendResponse({ success: false, error: chrome.runtime.lastError.message });
-      } else {
-        console.log('[VideoDownloader] Download started:', downloadId);
-        sendResponse({ success: true, downloadId });
+    chrome.downloads.download(
+      {
+        url: url,
+        filename: filename || 'video.mp4',
+        saveAs: false
+      },
+      (downloadId) => {
+        if (chrome.runtime.lastError) {
+          console.error('[VideoDownloader] Error:', chrome.runtime.lastError);
+          sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          console.log('[VideoDownloader] Download started:', downloadId);
+          sendResponse({ success: true, downloadId });
+        }
       }
-    });
-    
+    );
     return true;
   }
 });

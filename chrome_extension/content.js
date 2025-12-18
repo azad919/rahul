@@ -1,60 +1,57 @@
-// Content script - bridge between page and extension
-console.log('[VideoDownloader] Content script loaded');
+// Simple, direct video scanner
+console.log('[VideoDownloader] Content script injected on:', window.location.hostname);
 
-// Inject page script
-try {
-  const script = document.createElement('script');
-  script.src = chrome.runtime.getURL('injected.js');
-  script.onload = () => script.remove();
-  script.onerror = () => {
-    console.error('[VideoDownloader] Failed to load injected.js');
-    script.remove();
-  };
-  document.documentElement.appendChild(script);
-} catch (e) {
-  console.error('[VideoDownloader] Failed to inject script:', e);
+function getAllVideos() {
+  const videos = [];
+  const seen = new Set();
+
+  // Scan for video elements
+  document.querySelectorAll('video').forEach((videoEl) => {
+    // Direct src
+    if (videoEl.src && videoEl.src.trim() && !seen.has(videoEl.src)) {
+      videos.push({
+        src: videoEl.src,
+        type: 'video/mp4',
+        timestamp: Date.now()
+      });
+      seen.add(videoEl.src);
+    }
+
+    // Source elements
+    videoEl.querySelectorAll('source').forEach((sourceEl) => {
+      if (sourceEl.src && sourceEl.src.trim() && !seen.has(sourceEl.src)) {
+        videos.push({
+          src: sourceEl.src,
+          type: sourceEl.type || 'video/mp4',
+          timestamp: Date.now()
+        });
+        seen.add(sourceEl.src);
+      }
+    });
+  });
+
+  console.log('[VideoDownloader] Found videos:', videos.length);
+  return videos;
 }
 
-// Listen for messages from popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('[VideoDownloader] Content received message:', request.action);
-  
-  if (request.action === 'SCAN_VIDEOS') {
-    // Get videos from page context
-    try {
-      const videos = window.__videoDownloaderVideos ? 
-        Array.from(window.__videoDownloaderVideos.values()) : 
-        [];
-      
-      // Also scan visible video elements
-      document.querySelectorAll('video').forEach(video => {
-        if (video.src && !videos.some(v => v.src === video.src)) {
-          videos.push({
-            src: video.src,
-            type: video.type || 'video/mp4',
-            timestamp: Date.now()
-          });
-        }
-        video.querySelectorAll('source').forEach(source => {
-          if (source.src && !videos.some(v => v.src === source.src)) {
-            videos.push({
-              src: source.src,
-              type: source.type || 'video/mp4',
-              timestamp: Date.now()
-            });
-          }
-        });
-      });
-      
-      console.log('[VideoDownloader] Found videos:', videos.length);
-      sendResponse({ videos });
-    } catch (e) {
-      console.error('[VideoDownloader] Error scanning videos:', e);
-      sendResponse({ videos: [] });
-    }
+// Handle messages from popup
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('[VideoDownloader] Received message:', message.action);
+
+  if (message.action === 'GET_VIDEOS') {
+    const videos = getAllVideos();
+    console.log('[VideoDownloader] Sending videos:', videos.length);
+    sendResponse({ success: true, videos });
+    return;
   }
-  
-  return true; // Keep message channel open
+
+  if (message.action === 'PING') {
+    console.log('[VideoDownloader] Ping received');
+    sendResponse({ success: true, pong: true });
+    return;
+  }
+
+  sendResponse({ success: false, error: 'Unknown action' });
 });
 
-console.log('[VideoDownloader] Content script ready');
+console.log('[VideoDownloader] Content script ready and listening');

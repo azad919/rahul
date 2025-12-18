@@ -1,14 +1,16 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('[Popup] Initialized');
+
   const fetchBtn = document.getElementById('fetch-btn');
   const downloadAllBtn = document.getElementById('download-all-btn');
   const videoList = document.getElementById('video-list');
   const videoCount = document.getElementById('video-count');
 
-  let detectedVideos = [];
+  let videos = [];
 
-  function renderVideos(videos) {
+  function renderVideos(videoList_) {
     videoList.innerHTML = '';
-    detectedVideos = videos;
+    videos = videoList_;
     videoCount.textContent = `${videos.length} found`;
 
     if (videos.length === 0) {
@@ -25,24 +27,24 @@ document.addEventListener('DOMContentLoaded', () => {
     downloadAllBtn.disabled = false;
 
     videos.forEach((video, index) => {
-      const div = document.createElement('div');
-      div.className = 'video-item';
-      
+      const item = document.createElement('div');
+      item.className = 'video-item';
+
       let filename = 'video';
       try {
-        const urlObj = new URL(video.src);
-        const path = urlObj.pathname;
-        const match = path.match(/([^\/]+?)(\.[^.]*)?$/);
-        if (match && match[1]) {
-          filename = match[1].substring(0, 30);
-        }
-      } catch (e) {}
+        const url = new URL(video.src);
+        const parts = url.pathname.split('/');
+        filename = parts[parts.length - 1] || 'video';
+        if (filename.length > 30) filename = filename.substring(0, 30) + '...';
+      } catch (e) {
+        filename = `video_${index + 1}`;
+      }
 
-      const urlPreview = video.src.substring(0, 40) + (video.src.length > 40 ? '...' : '');
+      const urlPreview = video.src.substring(0, 50) + (video.src.length > 50 ? '...' : '');
 
-      div.innerHTML = `
+      item.innerHTML = `
         <div class="checkbox-wrapper">
-          <input type="checkbox" id="vid-${index}" checked>
+          <input type="checkbox" class="video-check" id="check-${index}" checked>
         </div>
         <div class="video-info">
           <div class="video-title">${filename}</div>
@@ -51,132 +53,119 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="progress-fill"></div>
           </div>
         </div>
-        <button class="download-btn" data-index="${index}" title="Download">
+        <button class="download-btn" data-idx="${index}">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
         </button>
       `;
-      videoList.appendChild(div);
-    });
 
-    document.querySelectorAll('.download-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const index = parseInt(e.currentTarget.dataset.index);
-        downloadVideo(detectedVideos[index], index);
+      videoList.appendChild(item);
+
+      item.querySelector('.download-btn').addEventListener('click', () => {
+        downloadSingle(video, index);
       });
     });
   }
 
-  function downloadVideo(video, index) {
+  function downloadSingle(video, index) {
     const progressBar = document.getElementById(`progress-${index}`);
     const progressFill = progressBar.querySelector('.progress-fill');
-    
+
     progressBar.style.display = 'block';
-    progressFill.style.width = '10%';
+    progressFill.style.width = '5%';
     progressFill.style.backgroundColor = '#3b82f6';
 
     let filename = 'video_' + Date.now() + '.mp4';
     try {
-      const urlObj = new URL(video.src);
-      const path = urlObj.pathname;
-      const match = path.match(/([^\/]+?)(\.[^.]*)?$/);
-      if (match && match[1]) {
-        filename = match[1];
-      }
+      const url = new URL(video.src);
+      const parts = url.pathname.split('/');
+      const name = parts[parts.length - 1];
+      if (name && name.length > 0) filename = name;
     } catch (e) {}
 
-    chrome.runtime.sendMessage({
-      action: 'DOWNLOAD_VIDEO',
-      url: video.src,
-      filename: filename
-    }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.error('Download error:', chrome.runtime.lastError);
-        progressFill.style.backgroundColor = '#ef4444';
-        progressFill.style.width = '100%';
-        return;
-      }
+    chrome.runtime.sendMessage(
+      { action: 'DOWNLOAD', url: video.src, filename },
+      (response) => {
+        if (chrome.runtime.lastError || !response.success) {
+          progressFill.style.backgroundColor = '#ef4444';
+          progressFill.style.width = '100%';
+          console.error('Download failed');
+          return;
+        }
 
-      if (response && response.success) {
-        let width = 10;
+        // Animate progress
+        let progress = 5;
         const interval = setInterval(() => {
-          width = Math.min(width + Math.random() * 40, 95);
-          progressFill.style.width = width + '%';
-          
-          if (width >= 95) {
+          progress = Math.min(progress + Math.random() * 40, 95);
+          progressFill.style.width = progress + '%';
+
+          if (progress >= 95) {
             clearInterval(interval);
             setTimeout(() => {
               progressFill.style.width = '100%';
               progressFill.style.backgroundColor = '#22c55e';
-            }, 200);
+            }, 100);
           }
-        }, 300);
-      } else {
-        progressFill.style.backgroundColor = '#ef4444';
-        progressFill.style.width = '100%';
+        }, 200);
       }
-    });
+    );
   }
 
-  fetchBtn.addEventListener('click', async () => {
+  async function scanVideos() {
+    console.log('[Popup] Scanning for videos...');
     fetchBtn.disabled = true;
     fetchBtn.style.opacity = '0.6';
-    
+
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      
-      if (!tab) {
-        videoList.innerHTML = '<div class="empty-state"><p>Error: No active tab</p></div>';
-        fetchBtn.disabled = false;
-        fetchBtn.style.opacity = '1';
-        return;
-      }
+      if (!tab) throw new Error('No active tab');
 
-      chrome.tabs.sendMessage(tab.id, { action: 'SCAN_VIDEOS' }, (response) => {
+      console.log('[Popup] Sending GET_VIDEOS to tab:', tab.id);
+
+      chrome.tabs.sendMessage(tab.id, { action: 'GET_VIDEOS' }, (response) => {
+        console.log('[Popup] Response:', response);
         fetchBtn.disabled = false;
         fetchBtn.style.opacity = '1';
-        
+
         if (chrome.runtime.lastError) {
-          console.error('Message error:', chrome.runtime.lastError.message);
+          console.error('[Popup] Error:', chrome.runtime.lastError.message);
           videoList.innerHTML = `
             <div class="empty-state">
-              <p>Error: ${chrome.runtime.lastError.message}</p>
-              <p class="sub-text">Try refreshing the page first.</p>
+              <p>Connection Error</p>
+              <p class="sub-text">${chrome.runtime.lastError.message}</p>
             </div>
           `;
           return;
         }
 
-        if (response && Array.isArray(response.videos)) {
-          renderVideos(response.videos);
+        if (response && response.success) {
+          renderVideos(response.videos || []);
         } else {
           renderVideos([]);
         }
       });
-    } catch (e) {
-      console.error('Error:', e);
+    } catch (error) {
+      console.error('[Popup] Error:', error);
       fetchBtn.disabled = false;
       fetchBtn.style.opacity = '1';
-      videoList.innerHTML = `<div class="empty-state"><p>Error: ${e.message}</p></div>`;
+      videoList.innerHTML = `<div class="empty-state"><p>Error: ${error.message}</p></div>`;
     }
-  });
+  }
+
+  fetchBtn.addEventListener('click', scanVideos);
 
   downloadAllBtn.addEventListener('click', () => {
-    const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+    const checked = document.querySelectorAll('.video-check:checked');
     let delay = 0;
-    
-    checkboxes.forEach(cb => {
-      const index = parseInt(cb.id.split('-')[1]);
-      if (!isNaN(index) && detectedVideos[index]) {
-        setTimeout(() => {
-          downloadVideo(detectedVideos[index], index);
-        }, delay);
-        delay += 500;
-      }
+
+    checked.forEach((check) => {
+      const idx = parseInt(check.id.split('-')[1]);
+      setTimeout(() => {
+        downloadSingle(videos[idx], idx);
+      }, delay);
+      delay += 500;
     });
   });
 
-  // Auto-fetch on open
-  setTimeout(() => {
-    fetchBtn.click();
-  }, 300);
+  // Auto-scan on popup open
+  setTimeout(scanVideos, 200);
 });
